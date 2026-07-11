@@ -1,0 +1,42 @@
+{
+  "name": "ade-workbench",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"vite\" \"cargo run --manifest-path server/Cargo.toml\"",
+    "dev:web": "vite",
+    "dev:api": "cargo run --manifest-path server/Cargo.toml",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "check": "tsc -b --pretty false",
+    "serve": "cargo run --release --manifest-path server/Cargo.toml"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "4.7.0",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "dompurify": "3.4.11",
+    "exceljs": "4.4.0",
+    "html-to-docx": "^1.8.0",
+    "lucide-react": "1.24.0",
+    "mammoth": "1.12.0",
+    "pdfjs-dist": "^4.10.38",
+    "pptx-preview": "1.0.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "utif2": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "concurrently": "9.1.0",
+    "esbuild": "0.28.1",
+    "typescript": "7.0.2",
+    "vite": "8.1.4"
+  }
+}

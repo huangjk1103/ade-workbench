@@ -1,0 +1,22 @@
+node_modules/
+dist/
+src-tauri/target/
+server/target/
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.user
+*.suo
+*.pdb
+
+# tsc -b artifacts (tsconfig has noEmit, but guard against stale emitted configs)
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo
+server/target/
+server/target-verify/
+.tmp-webbridge-*.json
+_artifacts/
+_docxshot.png
+.ade-server-*
