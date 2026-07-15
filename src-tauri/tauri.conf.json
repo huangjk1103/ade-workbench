@@ -5,8 +5,8 @@
   "identifier": "ai.ade.workbench",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build && npm run build:sidecar",
     "frontendDist": "../dist"
   },
   "app": {
@@ -30,8 +30,12 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis"],
+    "externalBin": ["binaries/ade-server"],
+    "resources": {
+      "../dist/": "web-dist/",
+      "resources/server-scripts/": "server-scripts/"
+    },
     "shortDescription": "多 Agent 文档与研发工作台",
     "longDescription": "在真实项目中阅读、批注、派发 Agent 任务并审核修改。"
   }
 }
-

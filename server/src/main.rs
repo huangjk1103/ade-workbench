@@ -105,6 +105,14 @@ struct DocxWriteReq {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct PowerPointEditReq {
+    root_path: String,
+    relative_path: String,
+    operations: Vec<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DetectReq {
     agents: Vec<AgentDescriptor>,
 }
@@ -182,6 +190,18 @@ async fn write_docx_file(State(_): State<AppState>, Json(req): Json<DocxWriteReq
     project_files::write_project_docx(&req.root_path, &req.relative_path, &req.html)
         .map_err(AppError)?;
     Ok(Json(serde_json::json!({})))
+}
+
+async fn powerpoint_model(State(_): State<AppState>, Json(req): Json<TwoPathReq>) -> Result<Json<Value>, AppError> {
+    Ok(Json(
+        project_files::read_powerpoint_model(&req.root_path, &req.relative_path).map_err(AppError)?,
+    ))
+}
+
+async fn powerpoint_edit(State(_): State<AppState>, Json(req): Json<PowerPointEditReq>) -> Result<Json<Value>, AppError> {
+    Ok(Json(
+        project_files::edit_powerpoint(&req.root_path, &req.relative_path, req.operations).map_err(AppError)?,
+    ))
 }
 
 async fn open_file(State(_): State<AppState>, Json(req): Json<TwoPathReq>) -> Result<Json<Value>, AppError> {
@@ -629,6 +649,8 @@ fn app(dist_dir: &str) -> Router {
         .route("/write", post(write_file))
         .route("/write-binary", post(write_binary_file))
         .route("/write-docx", post(write_docx_file))
+        .route("/pptx/model", post(powerpoint_model))
+        .route("/pptx/edit", post(powerpoint_edit))
         .route("/open", post(open_file))
         .route("/open-folder", post(open_folder))
         .route("/detect-agents", post(detect_agents))

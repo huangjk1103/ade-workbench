@@ -1,7 +1,7 @@
 import { useEffect, useMemo, type CSSProperties } from "react";
 import type { Annotation, FilePayload, TextSelectionContext } from "../../types/domain";
 import { selectionContext } from "./shared";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 interface SequenceViewProps {
   payload: FilePayload;
@@ -51,6 +51,29 @@ function parseFastq(text: string): SeqRecord[] {
   return records;
 }
 
+// A `.seq` file is by convention a freeform text sequence; sometimes it
+// carries one FASTA header, sometimes it's just a raw letter stream. We
+// promote it to a single-record FASTA when we see either no header at all
+// (treat as one anonymous record) or a leading `>` / `@` line.
+function looksLikeFasta(text: string): boolean {
+  const trimmed = text.trimStart();
+  return trimmed.startsWith(">") || trimmed.startsWith("@");
+}
+
+function parseSeq(text: string, extension: string): { records: SeqRecord[]; fastq: boolean } {
+  if (extension === "fq" || extension === "fastq" || text.trimStart().startsWith("@")) {
+    return { records: parseFastq(text), fastq: true };
+  }
+  if (extension === "seq" && !looksLikeFasta(text)) {
+    // Promote a headerless .seq to a single anonymous FASTA record so the
+    // rest of the viewer pipeline (selection / jump) works uniformly.
+    const cleaned = text.replace(/\s+/g, "").trim();
+    if (!cleaned) return { records: [], fastq: false };
+    return { records: [{ header: "", sequence: cleaned.toUpperCase() }], fastq: false };
+  }
+  return { records: parseFasta(text), fastq: false };
+}
+
 // Color residues by chemical group. Ambiguity codes get a neutral gray so
 // the eye can scan past them. Uppercase only — we already uppercased on parse.
 const NUCLEOTIDE_COLORS: Record<string, string> = {
@@ -74,8 +97,8 @@ function detectAlphabets(sequences: string[]): { dna: boolean; protein: boolean 
   return { dna, protein };
 }
 
-function isFastq(payload: FilePayload): boolean {
-  return payload.extension === "fq" || payload.extension === "fastq";
+function isFastq(payload: FilePayload, fastqFlag: boolean): boolean {
+  return fastqFlag || payload.extension === "fq" || payload.extension === "fastq";
 }
 
 function formatNumber(value: number): string {
@@ -98,15 +121,23 @@ function colorFor(char: string, alphabet: { dna: boolean; protein: boolean }): s
   return undefined;
 }
 
+// User-selectable line widths for the sequence body. The default of 100
+// matches the user-requested options (100/150/200) and is also a comfortable
+// reading width on most monitors.
+const LINE_WIDTHS = [60, 100, 150, 200] as const;
+
 export default function SequenceView({ payload, onSelection, pendingJump, onJumpMissed }: SequenceViewProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const fastq = isFastq(payload);
+  const [lineWidth, setLineWidth] = useState<(typeof LINE_WIDTHS)[number]>(100);
 
-  const records = useMemo(() => {
+  const { records, fastq } = useMemo(() => {
     const text = payload.content;
-    if (!text) return [] as SeqRecord[];
-    return fastq ? parseFastq(text) : parseFasta(text);
-  }, [payload.content, fastq]);
+    if (!text) return { records: [] as SeqRecord[], fastq: false };
+    const parsed = parseSeq(text, payload.extension);
+    return { records: parsed.records, fastq: parsed.fastq };
+  }, [payload.content, payload.extension]);
+
+  const fastqMode = isFastq(payload, fastq);
 
   const stats = useMemo(() => {
     const lengths = records.map((record) => record.sequence.length);
@@ -143,7 +174,6 @@ export default function SequenceView({ payload, onSelection, pendingJump, onJump
       // Highlight each 60-bp line that overlaps the match index.
       const lines = Array.from(record.querySelectorAll<HTMLElement>(".sequence-body > span"));
       let cursor = 0;
-      let lineIndex = 0;
       const needleStart = idx;
       const needleEnd = idx + needle.length;
       for (const line of lines) {
@@ -155,7 +185,6 @@ export default function SequenceView({ payload, onSelection, pendingJump, onJump
           line.dataset.jumpExpiresAt = String(Date.now() + 2300);
         }
         cursor = lineEnd;
-        lineIndex += 1;
       }
     }
     if (!firstMatch) {
@@ -185,7 +214,7 @@ export default function SequenceView({ payload, onSelection, pendingJump, onJump
   if (records.length === 0) {
     return (
       <div className="viewer-state">
-        <strong>{fastq ? "FASTQ" : "FASTA"} 文件为空或无法解析</strong>
+        <strong>{fastqMode ? "FASTQ" : payload.extension === "seq" ? "SEQ" : "FASTA"} 文件为空或无法解析</strong>
         <span>{payload.relativePath}</span>
       </div>
     );
@@ -195,7 +224,7 @@ export default function SequenceView({ payload, onSelection, pendingJump, onJump
     <div className="sequence-view" ref={hostRef} onMouseUp={captureSelection}>
       <div className="sequence-summary">
         <div>
-          <span>{fastq ? "FASTQ" : "FASTA"}</span>
+          <span>{fastqMode ? "FASTQ" : payload.extension === "seq" ? "SEQ" : "FASTA"}</span>
           <strong>{stats.count.toLocaleString("en-US")} 条记录</strong>
         </div>
         <div>
@@ -206,17 +235,30 @@ export default function SequenceView({ payload, onSelection, pendingJump, onJump
           {stats.alphabet.dna && <i style={{ background: NUCLEOTIDE_COLORS.A }} />}<span>核酸</span>
           {stats.alphabet.protein && <i style={{ background: "#7faecf" }} />}<span>蛋白</span>
         </div>
+        <div className="sequence-line-width">
+          <span>每行</span>
+          {LINE_WIDTHS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={lineWidth === value ? "is-active" : ""}
+              onClick={() => setLineWidth(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="sequence-records">
         {records.map((record, recordIndex) => (
           <div className="sequence-record" key={`${recordIndex}-${record.header}`}>
             <div className="sequence-header">
-              <span className="sequence-tag">{fastq ? "@" : ">"}</span>
+              <span className="sequence-tag">{fastqMode ? "@" : ">"}</span>
               <span className="sequence-name">{record.header || "(无名序列)"}</span>
-              <em>{formatNumber(record.sequence.length)} {fastq ? "bp" : "aa"}</em>
+              <em>{formatNumber(record.sequence.length)} {fastqMode ? "bp" : "aa"}</em>
             </div>
             <pre className="sequence-body">
-              {renderSequence(record.sequence, stats.alphabet)}
+              {renderSequence(record.sequence, stats.alphabet, lineWidth)}
             </pre>
             {record.quality && (
               <pre className="sequence-quality">{renderQuality(record.quality)}</pre>
@@ -228,31 +270,60 @@ export default function SequenceView({ payload, onSelection, pendingJump, onJump
   );
 }
 
-function renderSequence(sequence: string, alphabet: { dna: boolean; protein: boolean }) {
+// Render the sequence as fixed-width lines so the line-width control has a
+// visible effect. Each line becomes a single <span> so the jump-to-source
+// effect (which highlights individual spans) still works.
+function renderSequence(sequence: string, alphabet: { dna: boolean; protein: boolean }, lineWidth: number) {
   const upper = sequence.toUpperCase();
-  const chunks: Array<{ key: string; style: CSSProperties; text: string }> = [];
+  const lines: Array<{ text: string; style: CSSProperties }> = [];
+  for (let offset = 0; offset < upper.length; offset += lineWidth) {
+    const chunk = upper.slice(offset, offset + lineWidth);
+    // Pick the dominant colour in this chunk for the line style. The
+    // per-character rendering below keeps individual nucleotide colours
+    // via inline spans, so this is purely a fallback for the line wrap
+    // container — keeping it makes the visual rhythm uniform.
+    let colour: string | undefined;
+    for (const char of chunk) {
+      const candidate = colorFor(char, alphabet);
+      if (candidate) { colour = candidate; break; }
+    }
+    lines.push({ text: chunk, style: colour ? { color: colour } : {} });
+  }
+  return lines.map((line, index) => (
+    <span key={`line-${index}`} style={{ ...line.style, display: "block" }}>
+      {renderLineChars(line.text, alphabet)}
+    </span>
+  ));
+}
+
+function renderLineChars(text: string, alphabet: { dna: boolean; protein: boolean }) {
+  // Per-character coloured spans. The outer line span keeps the wrap; the
+  // inner spans carry the colour. Whitespace / digits fall through to
+  // plain text in the inherited colour.
+  const out: React.ReactNode[] = [];
   let buffer = "";
   let bufferColor: string | undefined;
-  for (let index = 0; index < upper.length; index += 1) {
-    const char = upper[index];
-    if (!/[A-Z\-\.\*]/.test(char)) {
-      // Whitespace, digits, etc. — flush current buffer and emit as plain.
-      if (buffer) { chunks.push({ key: `${index}-plain`, text: buffer, style: {} }); buffer = ""; }
-      chunks.push({ key: `${index}-raw`, text: char, style: {} });
-      continue;
-    }
+  const flush = (key: string) => {
+    if (!buffer) return;
+    out.push(
+      <span key={key} style={bufferColor ? { color: bufferColor } : {}}>{buffer}</span>,
+    );
+    buffer = "";
+    bufferColor = undefined;
+  };
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
     const color = colorFor(char, alphabet);
-    if (color !== bufferColor && buffer) {
-      chunks.push({ key: `${index}-${bufferColor ?? "x"}`, text: buffer, style: bufferColor ? { color: bufferColor } : {} });
-      buffer = "";
+    if (color === bufferColor) {
+      buffer += char;
+    } else {
+      flush(`flush-${index}`);
+      buffer = char;
+      bufferColor = color;
     }
-    buffer += char;
-    bufferColor = color;
   }
-  if (buffer) {
-    chunks.push({ key: `tail-${bufferColor ?? "x"}`, text: buffer, style: bufferColor ? { color: bufferColor } : {} });
-  }
-  return chunks.map((chunk) => <span key={chunk.key} style={chunk.style}>{chunk.text}</span>);
+  flush("flush-tail");
+  return out;
 }
 
 function renderQuality(quality: string) {

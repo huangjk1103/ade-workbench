@@ -1,12 +1,7 @@
 import DOMPurify from "dompurify";
 import JSZip from "jszip";
-// utif2 ships as CommonJS (`module.exports = UTIF`), which means a namespace
-// import may not expose the functions directly under ESM. We pull in the
-// default export as a fallback so the same code works whether Vite returns
-// a namespace object, a default-wrapped namespace, or a synthetic default.
-import * as UTIFns from "utif2";
-const UTIF: typeof UTIFns = (UTIFns as any).decode ? UTIFns : ((UTIFns as any).default ?? UTIFns);
 import type { DocxReviewModel, ReviewComment, ReviewReply, TrackChange } from "../types/domain";
+import { tiffBase64ToPngDataUrl } from "./tiff";
 
 // OOXML namespaces used by .docx parts. We look elements up by namespace +
 // localName so the converter is immune to prefix renames in the wild.
@@ -143,33 +138,6 @@ function mimeFor(ext: string): string {
 
 function isTiffMime(mime: string): boolean {
   return mime === "image/tiff" || mime === "image/tif";
-}
-
-export function tiffBase64ToPngDataUrl(tiffB64: string): string | null {
-  try {
-    const binary = atob(tiffB64);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-    const ifds = UTIF.decode(bytes.buffer);
-    if (!ifds.length) return null;
-    const ifd = ifds[0];
-    UTIF.decodeImage(bytes.buffer, ifd);
-    const rgba = UTIF.toRGBA8(ifd);
-    const w = ifd.width;
-    const h = ifd.height;
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    const imageData = ctx.createImageData(w, h);
-    imageData.data.set(rgba);
-    ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL("image/png");
-  } catch {
-    return null;
-  }
 }
 
 interface ReviewContext {

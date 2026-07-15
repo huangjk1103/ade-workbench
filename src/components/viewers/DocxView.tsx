@@ -29,6 +29,7 @@ import {
   Superscript,
   Type,
   Underline,
+  WrapText,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -36,7 +37,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import mammoth from "mammoth";
 import { decodeBase64 } from "../../lib/bridge";
-import { parseDocxForReview, tiffBase64ToPngDataUrl } from "../../lib/docxReview";
+import { parseDocxForReview } from "../../lib/docxReview";
+import { tiffBase64ToPngDataUrl } from "../../lib/tiff";
 import type { Annotation, DocxReviewModel, FilePayload, ReviewComment, TextSelectionContext } from "../../types/domain";
 import { selectionContext, ViewerError, ViewerLoading } from "./shared";
 
@@ -834,6 +836,86 @@ export default function DocxView({ payload, onDocxSave, onSelection, onCreateAnn
   const handleInsertImage = () => {
     imageInputRef.current?.click();
   };
+
+  // Re-flow the document text at the current editor width. We can't rely on
+  // the browser alone because:
+  //   - The docx is loaded with `white-space: pre-wrap` so whitespace and
+  //     soft line breaks from Word round-trip cleanly. But that also means
+  //     longer lines are kept on a single line until they overflow.
+  //   - The italicize-taxa script splits runs and can drop the boundary
+  //     space between an italic and non-italic run, producing run-together
+  //     text like "Planctomycetotaare". The browser has no way to know a
+  //     missing space was *supposed* to be there.
+  //
+  // The rewrap pass does three things:
+  //   1. Collapse runs of whitespace (multi-space / NBSP / soft newlines)
+//      into a single regular space.
+//   2. Insert a missing space between adjacent text nodes whose boundary
+//      dropped it — only when both ends are letter/digit, so we don't
+//      break legitimate compound identifiers.
+//   3. Let the browser reflow each block at its current width.
+  //
+  // We intentionally leave <br>, <figure>, and other block-level elements
+  // alone so the structure survives the round-trip back to docx.
+  const handleRewrap = () => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    // Pass 1: collapse stray whitespace inside each text node.
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    let textNode: Node | null;
+    while ((textNode = walker.nextNode())) {
+      const node = textNode as Text;
+      const original = node.nodeValue ?? "";
+      if (!/[ \t\f\v\n]{2,}|\u00a0/.test(original)) continue;
+      const normalized = original
+        .replace(/\u00a0/g, " ")
+        .replace(/[ \t\f\v]+/g, " ")
+        .replace(/[ \t]*\n[ \t]*/g, " ");
+      if (normalized !== original) node.nodeValue = normalized;
+    }
+
+    // Pass 2: re-insert boundary whitespace between adjacent text nodes when
+    // one ends with [A-Za-z0-9] and the next begins with [A-Za-z0-9]. We
+    // only patch the *first* missing space per node, otherwise a chain of
+    // concatenated runs could balloon into "  " between words.
+    const wordChar = /[A-Za-z0-9]/;
+    const blocks = host.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote");
+    blocks.forEach((block) => {
+      const walker2 = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+        acceptNode: (n) => {
+          // Skip text inside <code>/<pre> — those are literal monospace
+          // blocks where adding spaces would be wrong.
+          const parent = (n as Text).parentElement;
+          if (parent && (parent.closest("code") || parent.closest("pre"))) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      let prev: Text | null = null;
+      let node: Node | null;
+      while ((node = walker2.nextNode())) {
+        const t = node as Text;
+        const value = t.nodeValue ?? "";
+        if (prev) {
+          const prevVal = prev.nodeValue ?? "";
+          const prevEnd = prevVal.slice(-1);
+          const currStart = value.charAt(0);
+          if (prevEnd && currStart && wordChar.test(prevEnd) && wordChar.test(currStart)) {
+            // Insert exactly one space before `t`. Using a fresh text node
+            // keeps the inline structure intact; replacing the leading char
+            // would clobber formatting on the second run.
+            const space = document.createTextNode(" ");
+            t.parentNode?.insertBefore(space, t);
+          }
+        }
+        if (value.length > 0) prev = t;
+      }
+    });
+
+    setDirty(true);
+  };
   const handleImageFileChosen = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.target;
     const file = input.files?.[0];
@@ -1089,6 +1171,15 @@ export default function DocxView({ payload, onDocxSave, onSelection, onCreateAnn
           </div>
         )}
         <div className="docx-toolbar-group">
+          <button
+            type="button"
+            onMouseDown={preventFocusLoss}
+            onClick={handleRewrap}
+            title="重新排版：合并多余空格 / 不间断空格为普通空格，浏览器会自动重新换行（不保存也能看效果）"
+            aria-label="重新排版"
+          >
+            <WrapText size={14} /> 重新排版
+          </button>
           <button
             type="button"
             onMouseDown={preventFocusLoss}

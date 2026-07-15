@@ -18,7 +18,6 @@ import {
 // SettingsPanel — keeping the import set minimal here.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityFeed } from "./components/ActivityFeed";
-import { AgentTerminal } from "./components/AgentTerminal";
 import { AnnotationPanel } from "./components/AnnotationPanel";
 import { FolderPicker } from "./components/FolderPicker";
 import { Landing } from "./components/Landing";
@@ -82,6 +81,7 @@ import { defaultAgents } from "./types/domain";
 import { useResizableSidebar } from "./lib/useResizableSidebar";
 
 const FileViewer = lazy(() => import("./components/FileViewer").then((module) => ({ default: module.FileViewer })));
+const AgentTerminal = lazy(() => import("./components/AgentTerminal").then((module) => ({ default: module.AgentTerminal })));
 
 type InspectorMode = "files" | "annotations" | "activity";
 
@@ -137,7 +137,7 @@ function dedupeProjects(projects: ProjectRecord[]): ProjectRecord[] {
 function fileKindOf(filePath: string): {
   kind: string;
   hint: string;
-  positionLabel: "行" | "段" | "页" | "位置";
+  positionLabel: "行" | "段" | "页" | "位置" | "bp";
 } {
   const ext = filePath.split(/[\\/]/).pop()?.split(".").pop()?.toLowerCase() ?? "";
   switch (ext) {
@@ -199,6 +199,32 @@ function fileKindOf(filePath: string): {
         kind: "FASTA / FASTQ 序列（utf-8 文本；ADE 用 SequenceView 渲染，序列每 60-80 个字符会强制折行，因此“行号”仅供大致参考）",
         positionLabel: "行",
         hint: "直接 Read 即可；如需按记录分段，可 `grep -n '^>' <file>` 或 `awk '/^>/{i++}{print i\":\"$0}'`。",
+      };
+    case "seq":
+      return {
+        kind: "SEQ 文本序列（utf-8；ADE 在打开时若检测到 `>` 头则走 SequenceView，否则作为单条匿名记录渲染，每行碱基数可在右上角切换 60/100/150/200）",
+        positionLabel: "行",
+        hint: "直接 Read 即可；若是 FASTA 格式可用 `grep -n '^>' <file>` 按记录分段；若是裸序列，`tr -d '\\n '` 后做后续处理。",
+      };
+    case "ab1":
+      return {
+        kind: "AB1 测序图谱（ABIF 二进制；ADE 用 Ab1View 解析 PBAS / PLOC / DATA 9-12，绘制四道色谱图 + 碱基标注；如需提取序列可用 BioPython 等工具）",
+        positionLabel: "bp",
+        hint: [
+          ".ab1 是 Applied Biosystems 测序仪的二进制图谱文件，ADE 已内置解析；如需脚本处理：",
+          "  • Python：pip install biopython，然后 Bio.SeqIO.parse('<file>', 'abi') 即可拿到基线 + 通道。",
+          "  • 命令行：`seqkit abi2fa <file>.ab1` 可直接输出 FASTA。",
+        ].join("\n"),
+      };
+    case "dna":
+      return {
+        kind: "SnapGene .dna 质粒文件（专有容器；ADE 的 DnaView 会先按 SnapGeneReader 公开的二进制块布局解析，再回退嗅探 gzip/zlib/JSON，并提供交互式质粒图谱、序列、特征表联动查看）",
+        positionLabel: "bp",
+        hint: [
+          ".dna 是 SnapGene 的专有格式；ADE 已内置参考 SnapGeneReader 的经典二进制块解析，并兼容常见 gzip+JSON 变体。如仍解析失败，请用 SnapGene 软件或 `seqkit` 转 GenBank / FASTA 后再处理。",
+          "  • 命令行：`seqkit seq -t DNA <file>.dna` 或先用 SnapGene 导出为 .gb / .fasta。",
+          "  • Python：pip install snapgene-parser（或 pygenomeformats），可以解析大部分 .dna 文件。",
+        ].join("\n"),
       };
     default:
       return {
@@ -336,6 +362,9 @@ function App() {
   const projectTabs = tabs.filter((tab) => tab.projectId === activeProjectId);
   const activeTab = tabs.find((tab) => tab.id === activeTabId && tab.projectId === activeProjectId);
   const activeFileTab = activeTab?.type === "file" ? activeTab : undefined;
+  const activeFileTabRef = useRef<FileTab | undefined>(activeFileTab);
+  const saveActiveFileRef = useRef<() => Promise<void>>(async () => undefined);
+  activeFileTabRef.current = activeFileTab;
   const allFiles = useMemo(() => project ? flattenEntries(project.entries).filter((entry) => entry.kind !== "folder") : [], [project]);
   const agentStatuses = useMemo(() => {
     const map = new Map<string, AgentDetection>();
@@ -510,14 +539,14 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.key.toLowerCase() === "s" && activeFileTab?.dirty) {
+      if (event.key.toLowerCase() === "s" && activeFileTabRef.current?.dirty) {
         event.preventDefault();
-        void saveActiveFile();
+        void saveActiveFileRef.current();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  });
+  }, []);
 
   useEffect(() => {
     if (!agentMenuOpen) return;
@@ -743,6 +772,7 @@ function App() {
       setError(String(reason));
     }
   }
+  saveActiveFileRef.current = saveActiveFile;
 
   // Re-read the active file from disk so the user can see whatever an
   // external agent just wrote. Used by the docx toolbar's "刷新" button.
@@ -1231,6 +1261,7 @@ function App() {
                 <Suspense fallback={<div className="viewer-state"><LoaderCircle className="spin" size={24} /><span>正在加载文件查看器…</span></div>}>
                   <FileViewer
                     key={activeFileTab.id}
+                    rootPath={project.rootPath}
                     payload={activeFileTab.payload}
                     content={activeFileTab.payload.content}
                     onContentChange={(content) => updateFileContent(activeFileTab.id, content)}
@@ -1261,8 +1292,9 @@ function App() {
                 </Suspense>
               )}
 
-              {projectTabs.filter((tab): tab is AgentTab => tab.type === "agent").map((tab) => (
-                <AgentTerminal
+              <Suspense fallback={<div className="agent-terminal-loading"><LoaderCircle className="spin" size={22} /><span>正在加载终端…</span></div>}>
+                {projectTabs.filter((tab): tab is AgentTab => tab.type === "agent").map((tab) => (
+                  <AgentTerminal
                   key={tab.sessionId}
                   sessionId={tab.sessionId}
                   active={tab.id === activeTabId}
@@ -1297,8 +1329,9 @@ function App() {
                       ? { ...session, phase: isActive ? "working" : "idle" }
                       : session));
                   }}
-                />
-              ))}
+                  />
+                ))}
+              </Suspense>
             </div>
           </section>
 

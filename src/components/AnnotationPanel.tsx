@@ -102,11 +102,16 @@ export function AnnotationPanel({
     setError("");
   }, [selection?.selectedText]);
 
-  const { fileAnnotations, otherFileAnnotations, unifiedRows, docxStats } = useMemo(() => {
+  // The panel intentionally only renders notes that belong to the
+  // currently-open file. Per the latest design feedback, opening a file
+  // should isolate its annotation list — never show annotations that were
+  // authored against other files in the same project. We keep the count
+  // (`totalOpen`) scoped the same way so the inspector badge and the list
+  // stay in sync.
+  const { fileAnnotations, unifiedRows, docxStats } = useMemo(() => {
     const filtered = annotations.filter((item) => item.projectId === projectId);
     const sorted = [...filtered].sort((left, right) => right.createdAt - left.createdAt);
     const fileAde = activeFilePath ? sorted.filter((item) => item.target.filePath === activeFilePath) : sorted;
-    const fileOther = activeFilePath ? sorted.filter((item) => item.target.filePath !== activeFilePath) : [];
     const rows: UnifiedRow[] = [];
     for (const annotation of fileAde) rows.push({ source: "ade", ts: annotation.createdAt, annotation });
     const docxIsActive = !!activeFilePath && /\.(docx|docm|doc)$/i.test(activeFilePath);
@@ -120,7 +125,7 @@ export function AnnotationPanel({
     const stats = docxIsActive && docxReview
       ? { comments: docxReview.comments.length, openComments: docxReview.comments.filter((c) => !c.resolved).length, changes: docxReview.changes.length }
       : { comments: 0, openComments: 0, changes: 0 };
-    return { fileAnnotations: fileAde, otherFileAnnotations: fileOther, unifiedRows: rows, docxStats: stats };
+    return { fileAnnotations: fileAde, unifiedRows: rows, docxStats: stats };
   }, [activeFilePath, annotations, projectId, docxReview]);
   const selectedAgentAvailable = detections.find((item) => item.id === agentId)?.available ?? false;
 
@@ -372,73 +377,6 @@ export function AnnotationPanel({
           </p>
         )}
       </div>
-
-      {otherFileAnnotations.length > 0 && (
-        <>
-          <div className="annotation-list-title annotation-list-title--other">
-            <span>其他文件</span>
-            <em>{otherFileAnnotations.length}</em>
-          </div>
-          <div className="real-annotation-list real-annotation-list--other">
-            {otherFileAnnotations.map((annotation) => {
-              const isJumpSource = jumpSourceId === annotation.id;
-              const cardClasses = [
-                "real-annotation",
-                `real-annotation--${annotation.status}`,
-                isJumpSource ? "is-jump-source" : "",
-              ].filter(Boolean).join(" ");
-              const fileName = annotation.target.filePath.split(/[\\/]/).pop() ?? annotation.target.filePath;
-              return (
-                <article
-                  key={annotation.id}
-                  className={cardClasses}
-                  style={{ borderLeftColor: annotation.target.color ?? undefined, borderLeftWidth: annotation.target.color ? 3 : undefined }}
-                  onClick={onJump ? () => onJump(annotation) : undefined}
-                  onKeyDown={(event) => {
-                    if (!onJump) return;
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onJump(annotation);
-                    }
-                  }}
-                  role={onJump ? "button" : undefined}
-                  tabIndex={onJump ? 0 : undefined}
-                  title={onJump ? `跳转到 ${annotation.target.filePath} 中的选中文字` : undefined}
-                >
-                  {onJump && (
-                    <span className="annotation-jump-hint" aria-hidden="true">
-                      <ArrowUpRight size={11} />
-                    </span>
-                  )}
-                  <div className="annotation-topline">
-                    <span>{annotation.status === "open" ? "待处理" : annotation.status === "sent" ? "已发送" : "已解决"}</span>
-                    <i title={annotation.target.filePath}><FileText size={10} /> {fileName}</i>
-                  </div>
-                  <blockquote>“{annotation.target.selectedText}”</blockquote>
-                  <p>{annotation.body}</p>
-                  <div
-                    className="annotation-footer"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    <small>{formatTime(annotation.createdAt)}</small>
-                    <div>
-                      {onJump && (
-                        <button type="button" onClick={() => onJump(annotation)} title={`打开并跳转到 ${fileName}`}>
-                          <ArrowUpRight size={13} />
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button type="button" onClick={() => void onDelete(annotation)} title="删除批注"><Trash2 size={13} /></button>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </>
-      )}
     </div>
   );
 }

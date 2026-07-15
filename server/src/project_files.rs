@@ -1,4 +1,5 @@
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::UNIX_EPOCH;
@@ -9,7 +10,6 @@ use crate::model::{DirEntry, DirListing, FilePayload, ProjectEntry, ProjectSnaps
 
 const MAX_ENTRIES: usize = 5_000;
 const MAX_DEPTH: usize = 10;
-const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const IGNORED_NAMES: &[&str] = &[
     ".git",
     ".ade",
@@ -20,6 +20,23 @@ const IGNORED_NAMES: &[&str] = &[
     ".vscode",
     "__pycache__",
 ];
+
+fn converter_script(name: &str) -> PathBuf {
+    std::env::var_os("ADE_SCRIPTS_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts"))
+        .join(name)
+}
+
+fn node_command() -> Command {
+    Command::new(std::env::var_os("ADE_NODE_PATH").unwrap_or_else(|| "node".into()))
+}
+
+fn contains_legacy_presentation_media(bytes: &[u8]) -> bool {
+    bytes.windows(4).any(|window| {
+        window.eq_ignore_ascii_case(b".emf") || window.eq_ignore_ascii_case(b".wmf")
+    })
+}
 
 fn modified_ms(metadata: &fs::Metadata) -> u64 {
     metadata
@@ -61,6 +78,15 @@ fn entry_kind(path: &Path, is_dir: bool) -> String {
         // Bioinformatics — sequence & raw read data
         "fa" | "fasta" | "fna" | "faa" | "ffn" | "frn" | "mpfa"
         | "fq" | "fastq" => "sequence",
+        // Sanger sequencing trace files (Applied Biosystems) — binary but
+        // semantically a sequence; the Dna icon matches the family.
+        "ab1" => "sequence",
+        // Generic text sequence files (.seq) — read as UTF-8 plain text so
+        // the CodeEditor can preview them as-is.
+        "seq" => "sequence",
+        // SnapGene plasmid files (.dna) — proprietary container, but
+        // semantically a sequence + features document.
+        "dna" => "sequence",
         // Bioinformatics — annotated sequences (GenBank / EMBL flatfiles)
         "gb" | "gbk" | "genbank" | "embl" => "annotation",
         // Bioinformatics — feature tables
@@ -83,7 +109,7 @@ fn entry_kind(path: &Path, is_dir: bool) -> String {
         | "json" | "jsonc" | "json5" | "yaml" | "yml" | "toml" | "ini" | "cfg"
         | "conf" | "config" | "env" | "properties" | "xml" | "xsl" | "xslt"
         | "txt" | "log" | "mdx" | "tex" | "bib" | "ipynb" | "dot" | "gv"
-        | "proto" | "graphql" | "sql" | "diff" | "patch" => "text",
+        | "proto" | "graphql" | "sql" | "diff" | "patch" | "tbl" => "text",
         _ => "binary",
     }
     .into()
@@ -189,7 +215,7 @@ fn is_text_extension(extension: &str) -> bool {
         extension,
         "md" | "markdown" | "rst" | "mdx" | "txt" | "log" | "json" | "jsonc" | "yaml"
             | "yml" | "toml" | "ini" | "cfg" | "conf" | "env" | "properties" | "xml"
-            | "csv" | "tsv" | "tab" | "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
+            | "csv" | "tsv" | "tab" | "tbl" | "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
             | "py" | "go" | "java" | "kt" | "kts" | "rb" | "php" | "swift" | "c"
             | "cpp" | "cc" | "cxx" | "h" | "hpp" | "hxx" | "m" | "mm" | "cs" | "scala"
             | "dart" | "lua" | "r" | "pl" | "sh" | "bash" | "zsh" | "ps1" | "bat"
@@ -207,6 +233,9 @@ fn is_text_extension(extension: &str) -> bool {
             | "sto" | "stockholm" | "aln" | "clustal"
             | "pdb" | "ent" | "cif" | "mmcif"
             | "obo"
+            // Generic text sequence files (.seq) — treat as plain UTF-8
+            // so the CodeEditor can preview them.
+            | "seq"
     )
 }
 
@@ -282,11 +311,26 @@ pub fn read_project_file(root_path: &str, relative_path: &str) -> Result<FilePay
     if !metadata.is_file() {
         return Err("所选项目项不是文件".into());
     }
-    if metadata.len() > MAX_FILE_BYTES {
-        return Err(format!("文件超过 {} MB 的首期读取限制", MAX_FILE_BYTES / 1024 / 1024));
-    }
     let bytes = fs::read(&target).map_err(|error| format!("读取文件失败：{error}"))?;
     let ext = extension(&target);
+
+    // For PowerPoint files, prefer a preview rendered by PowerPoint itself.
+    // pptx-preview remains the cross-platform fallback, but cannot reproduce
+    // every Office layout/shape/font rule. The flattened preview preserves
+    // the exact static slide appearance while leaving the source untouched.
+    if matches!(ext.as_str(), "ppt" | "pptx" | "pptm") {
+        if let Ok(preview_bytes) = render_powerpoint_preview(&target, &metadata) {
+            return Ok(FilePayload {
+                relative_path: relative_path.to_string(),
+                name: target.file_name().and_then(|value| value.to_str()).unwrap_or("file").to_string(),
+                extension: "pptx".to_string(),
+                size: metadata.len(),
+                modified_ms: modified_ms(&metadata),
+                encoding: "base64".to_string(),
+                content: base64::engine::general_purpose::STANDARD.encode(preview_bytes),
+            });
+        }
+    }
 
     // Legacy `.doc` files use a binary Word 97-2003 format that no
     // browser-side library (mammoth) can parse. Convert the payload to
@@ -294,7 +338,7 @@ pub fn read_project_file(root_path: &str, relative_path: &str) -> Result<FilePay
     // any client-side changes. The on-disk path stays `.doc`; the
     // reported extension is the *content* format we hand to the viewer.
     if ext == "doc" {
-        let docx_bytes = convert_word_format(&bytes, "doc-to-docx")?;
+        let docx_bytes = convert_office_format(&bytes, "doc-to-docx")?;
         return Ok(FilePayload {
             relative_path: relative_path.to_string(),
             name: target.file_name().and_then(|value| value.to_str()).unwrap_or("file").to_string(),
@@ -304,6 +348,40 @@ pub fn read_project_file(root_path: &str, relative_path: &str) -> Result<FilePay
             encoding: "base64".to_string(),
             content: base64::engine::general_purpose::STANDARD.encode(docx_bytes),
         });
+    }
+
+    // PowerPoint 97–2003 `.ppt` files are OLE binaries rather than OOXML.
+    // Convert a temporary in-memory copy through installed PowerPoint so the
+    // existing PPTX workbench can render it. If Office automation is not
+    // available, preserve the original payload and let FileViewer offer the
+    // system-program fallback instead of making the file impossible to open.
+    if ext == "ppt" {
+        if let Ok(pptx_bytes) = convert_office_format(&bytes, "ppt-to-pptx") {
+            let pptx_bytes = normalize_pptx_media(&pptx_bytes).unwrap_or(pptx_bytes);
+            return Ok(FilePayload {
+                relative_path: relative_path.to_string(),
+                name: target.file_name().and_then(|value| value.to_str()).unwrap_or("file").to_string(),
+                extension: "pptx".to_string(),
+                size: metadata.len(),
+                modified_ms: modified_ms(&metadata),
+                encoding: "base64".to_string(),
+                content: base64::engine::general_purpose::STANDARD.encode(pptx_bytes),
+            });
+        }
+    }
+
+    if matches!(ext.as_str(), "pptx" | "pptm") && contains_legacy_presentation_media(&bytes) {
+        if let Ok(normalized) = normalize_pptx_media(&bytes) {
+            return Ok(FilePayload {
+                relative_path: relative_path.to_string(),
+                name: target.file_name().and_then(|value| value.to_str()).unwrap_or("file").to_string(),
+                extension: ext,
+                size: metadata.len(),
+                modified_ms: modified_ms(&metadata),
+                encoding: "base64".to_string(),
+                content: base64::engine::general_purpose::STANDARD.encode(normalized),
+            });
+        }
     }
 
     let (encoding, content) = if is_text_extension(&ext) {
@@ -378,14 +456,12 @@ pub fn write_project_docx(root_path: &str, relative_path: &str, html: &str) -> R
         return Err("write_project_docx 只能用于 docx/docm/doc 文件".into());
     }
 
-    let script_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("scripts")
-        .join("html-to-docx.cjs");
+    let script_path = converter_script("html-to-docx.cjs");
     if !script_path.is_file() {
         return Err(format!("DOCX 转换脚本不存在：{}", script_path.display()));
     }
 
-    let output = Command::new("node")
+    let output = node_command()
         .arg(&script_path)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -413,7 +489,7 @@ pub fn write_project_docx(root_path: &str, relative_path: &str, html: &str) -> R
         .map_err(|error| format!("DOCX 转换输出 Base64 解码失败：{error}"))?;
 
     if ext == "doc" {
-        let doc_bytes = convert_word_format(&docx_bytes, "docx-to-doc")
+        let doc_bytes = convert_office_format(&docx_bytes, "docx-to-doc")
             .map_err(|error| format!("DOC 转换失败：{error}"))?;
         fs::write(target, doc_bytes).map_err(|error| format!("保存 DOC 文件失败：{error}"))
     } else {
@@ -421,18 +497,16 @@ pub fn write_project_docx(root_path: &str, relative_path: &str, html: &str) -> R
     }
 }
 
-/// Convert a `.doc` ↔ `.docx` payload by shelling out to the
-/// `doc-format-convert.cjs` helper, which uses Microsoft Word COM
-/// automation (only available on Windows where Word is installed).
+/// Convert a legacy Office payload by shelling out to the
+/// `doc-format-convert.cjs` helper, which uses Word or PowerPoint COM
+/// automation (only available on Windows with the corresponding app).
 ///
-/// `mode` is either `"doc-to-docx"` or `"docx-to-doc"`. The wrapper takes
+/// The wrapper takes
 /// base64 via stdin so we never have to write the user's files to disk.
-fn convert_word_format(input: &[u8], mode: &str) -> Result<Vec<u8>, String> {
-    let script_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("scripts")
-        .join("doc-format-convert.cjs");
+fn convert_office_format(input: &[u8], mode: &str) -> Result<Vec<u8>, String> {
+    let script_path = converter_script("doc-format-convert.cjs");
     if !script_path.is_file() {
-        return Err(format!("Word 格式转换脚本不存在：{}", script_path.display()));
+        return Err(format!("Office 格式转换脚本不存在：{}", script_path.display()));
     }
 
     let payload = serde_json::json!({
@@ -440,9 +514,9 @@ fn convert_word_format(input: &[u8], mode: &str) -> Result<Vec<u8>, String> {
         "inputBase64": base64::engine::general_purpose::STANDARD.encode(input),
     });
     let payload_bytes = serde_json::to_vec(&payload)
-        .map_err(|error| format!("序列化 Word 转换请求失败：{error}"))?;
+        .map_err(|error| format!("序列化 Office 转换请求失败：{error}"))?;
 
-    let output = Command::new("node")
+    let output = node_command()
         .arg(&script_path)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -456,28 +530,196 @@ fn convert_word_format(input: &[u8], mode: &str) -> Result<Vec<u8>, String> {
             }
             child.wait_with_output()
         })
-        .map_err(|error| format!("启动 Word 格式转换失败：{error}"))?;
+        .map_err(|error| format!("启动 Office 格式转换失败：{error}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "Word 格式转换失败（退出码 {:?}）：{}",
+            "Office 格式转换失败（退出码 {:?}）：{}",
             output.status.code(),
             stderr.trim()
         ));
     }
 
     let stdout = String::from_utf8(output.stdout)
-        .map_err(|error| format!("Word 格式转换输出不是有效 UTF-8：{error}"))?;
+        .map_err(|error| format!("Office 格式转换输出不是有效 UTF-8：{error}"))?;
     let parsed: serde_json::Value = serde_json::from_str(stdout.trim())
-        .map_err(|error| format!("Word 格式转换输出解析失败：{error}"))?;
+        .map_err(|error| format!("Office 格式转换输出解析失败：{error}"))?;
     let output_b64 = parsed
         .get("outputBase64")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| "Word 格式转换输出缺少 outputBase64".to_string())?;
+        .ok_or_else(|| "Office 格式转换输出缺少 outputBase64".to_string())?;
     base64::engine::general_purpose::STANDARD
         .decode(output_b64.trim())
-        .map_err(|error| format!("Word 格式转换输出 Base64 解码失败：{error}"))
+        .map_err(|error| format!("Office 格式转换输出 Base64 解码失败：{error}"))
+}
+
+fn normalize_pptx_media(input: &[u8]) -> Result<Vec<u8>, String> {
+    if !contains_legacy_presentation_media(input) {
+        return Ok(input.to_vec());
+    }
+    let script_path = converter_script("pptx-media-convert.cjs");
+    if !script_path.is_file() {
+        return Err(format!("PPTX 媒体转换脚本不存在：{}", script_path.display()));
+    }
+
+    let input_base64 = base64::engine::general_purpose::STANDARD.encode(input);
+    let output = node_command()
+        .arg(&script_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(input_base64.as_bytes())?;
+            }
+            child.wait_with_output()
+        })
+        .map_err(|error| format!("启动 PPTX 媒体转换失败：{error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "PPTX 媒体转换失败：{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let encoded = String::from_utf8(output.stdout)
+        .map_err(|error| format!("PPTX 媒体转换输出不是有效 UTF-8：{error}"))?;
+    base64::engine::general_purpose::STANDARD
+        .decode(encoded.trim())
+        .map_err(|error| format!("PPTX 媒体转换输出 Base64 解码失败：{error}"))
+}
+
+fn render_powerpoint_preview(target: &Path, metadata: &fs::Metadata) -> Result<Vec<u8>, String> {
+    let script_path = converter_script("powerpoint-preview-export.cjs");
+    if !script_path.is_file() {
+        return Err(format!("PowerPoint 预览脚本不存在：{}", script_path.display()));
+    }
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    target.to_string_lossy().to_ascii_lowercase().hash(&mut hasher);
+    metadata.len().hash(&mut hasher);
+    modified_ms(metadata).hash(&mut hasher);
+    let cache_key = hasher.finish();
+    let cache_dir = std::env::temp_dir().join("ade-presentation-preview-cache");
+    fs::create_dir_all(&cache_dir).map_err(|error| format!("创建演示文稿预览缓存失败：{error}"))?;
+    let cached_path = cache_dir.join(format!("{cache_key:016x}.pptx"));
+    if cached_path.metadata().map(|value| value.len() > 1000).unwrap_or(false) {
+        return fs::read(&cached_path).map_err(|error| format!("读取演示文稿预览缓存失败：{error}"));
+    }
+
+    let output_path = cache_dir.join(format!("{cache_key:016x}-{}.tmp.pptx", uuid::Uuid::new_v4()));
+    let request = serde_json::to_vec(&serde_json::json!({
+        "inputPath": strip_verbatim_prefix(target).to_string_lossy(),
+        "outputPath": output_path.to_string_lossy(),
+    }))
+    .map_err(|error| format!("序列化 PowerPoint 预览请求失败：{error}"))?;
+
+    let output = node_command()
+        .arg(&script_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(&request)?;
+            }
+            child.wait_with_output()
+        })
+        .map_err(|error| format!("启动 PowerPoint 高保真预览失败：{error}"))?;
+
+    if !output.status.success() {
+        let _ = fs::remove_file(&output_path);
+        return Err(format!(
+            "PowerPoint 高保真预览失败：{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if !output_path.metadata().map(|value| value.len() > 1000).unwrap_or(false) {
+        let _ = fs::remove_file(&output_path);
+        return Err("PowerPoint 高保真预览没有生成有效文件".to_string());
+    }
+
+    if let Err(error) = fs::rename(&output_path, &cached_path) {
+        if !cached_path.is_file() {
+            let _ = fs::remove_file(&output_path);
+            return Err(format!("保存 PowerPoint 预览缓存失败：{error}"));
+        }
+        let _ = fs::remove_file(&output_path);
+    }
+    fs::read(&cached_path).map_err(|error| format!("读取 PowerPoint 高保真预览失败：{error}"))
+}
+
+fn ensure_powerpoint_path(root_path: &str, relative_path: &str) -> Result<PathBuf, String> {
+    let (_, target) = safe_existing_path(root_path, relative_path)?;
+    let extension = target
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(extension.as_str(), "ppt" | "pptx" | "pptm") {
+        return Err("只有 PowerPoint 文件支持此操作".into());
+    }
+    Ok(target)
+}
+
+fn run_powerpoint_editor(request: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let script_path = converter_script("powerpoint-editor.cjs");
+    if !script_path.is_file() {
+        return Err(format!("PowerPoint 编辑脚本不存在：{}", script_path.display()));
+    }
+    let request_bytes = serde_json::to_vec(request)
+        .map_err(|error| format!("序列化 PowerPoint 编辑请求失败：{error}"))?;
+    let output = node_command()
+        .arg(&script_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(&request_bytes)?;
+            }
+            child.wait_with_output()
+        })
+        .map_err(|error| format!("启动 PowerPoint 编辑服务失败：{error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "PowerPoint 编辑失败：{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("PowerPoint 编辑服务输出解析失败：{error}"))
+}
+
+pub fn read_powerpoint_model(root_path: &str, relative_path: &str) -> Result<serde_json::Value, String> {
+    let target = ensure_powerpoint_path(root_path, relative_path)?;
+    run_powerpoint_editor(&serde_json::json!({
+        "mode": "model",
+        "inputPath": strip_verbatim_prefix(&target).to_string_lossy(),
+    }))
+}
+
+pub fn edit_powerpoint(
+    root_path: &str,
+    relative_path: &str,
+    operations: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    if operations.is_empty() {
+        return Ok(serde_json::json!({ "ok": true, "operationCount": 0 }));
+    }
+    let target = ensure_powerpoint_path(root_path, relative_path)?;
+    run_powerpoint_editor(&serde_json::json!({
+        "mode": "edit",
+        "inputPath": strip_verbatim_prefix(&target).to_string_lossy(),
+        "operations": operations,
+    }))
 }
 
 // ---- Directory browser for the web folder picker ----

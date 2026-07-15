@@ -84,6 +84,68 @@ export function writeProjectDocx(
   return api("/write-docx", { rootPath, relativePath, html });
 }
 
+export interface PowerPointTextShape {
+  id: number;
+  slideIndex: number;
+  name: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  zOrder: number;
+  fontName: string;
+  fontSize: number;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  alignment: number;
+  marginLeft: number;
+  marginRight: number;
+  marginTop: number;
+  marginBottom: number;
+  dataBase64?: string;
+  imageExtension?: string;
+}
+
+export interface PowerPointSlideModel {
+  index: number;
+  backgroundColor: string;
+  followMasterBackground: boolean;
+  shapes: PowerPointTextShape[];
+}
+
+export interface PowerPointModel {
+  slideWidth: number;
+  slideHeight: number;
+  slides: PowerPointSlideModel[];
+}
+
+export type PowerPointEditOperation =
+  | ({ kind: "updateText"; slideIndex: number; shapeId: number } & Partial<Pick<PowerPointTextShape,
+    "text" | "x" | "y" | "width" | "height" | "fontName" | "fontSize" | "color" | "bold" | "italic" | "underline" | "alignment"
+  >>)
+  | ({ kind: "addText"; slideIndex: number } & Pick<PowerPointTextShape,
+    "text" | "x" | "y" | "width" | "height" | "fontName" | "fontSize" | "color" | "bold" | "italic" | "underline" | "alignment"
+  >)
+  | { kind: "addImage"; slideIndex: number; x: number; y: number; width: number; height: number; dataBase64: string; extension: string }
+  | { kind: "deleteShape"; slideIndex: number; shapeId: number }
+  | { kind: "setBackground"; slideIndex: number; color: string };
+
+export function readPowerPointModel(rootPath: string, relativePath: string): Promise<PowerPointModel> {
+  return api<PowerPointModel>("/pptx/model", { rootPath, relativePath });
+}
+
+export function editPowerPoint(
+  rootPath: string,
+  relativePath: string,
+  operations: PowerPointEditOperation[],
+): Promise<{ ok: boolean; operationCount: number }> {
+  return api("/pptx/edit", { rootPath, relativePath, operations });
+}
+
 export async function loadPersistedState(): Promise<PersistedState> {
   return api<PersistedState>("/state");
 }

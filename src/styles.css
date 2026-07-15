@@ -312,6 +312,118 @@ kbd { padding: 2px 5px; border: 1px solid #363b43; border-radius: 4px; color: #7
 .sequence-body { margin: 0; padding: 6px 10px; border-radius: 4px; color: #b7bcc4; background: #15181c; font: 11px/1.55 "Cascadia Code", monospace; letter-spacing: .03em; overflow-x: auto; word-break: break-all; }
 .sequence-quality { margin: 4px 0 0; padding: 4px 10px; color: #5f666f; background: #111317; font: 10px "Cascadia Code", monospace; }
 
+/* Per-row line width switcher, sits in the summary strip alongside the
+   alphabet legend. Mirrors the floating preview/source toggle used by the
+   Markdown viewer so the visual rhythm stays consistent. */
+.sequence-line-width { display: inline-flex; align-items: center; gap: 4px; margin-left: 14px; color: #747b84; }.sequence-line-width span { font: 700 7px "Cascadia Code", monospace; letter-spacing: .12em; color: #5f666f; }.sequence-line-width button { padding: 2px 7px; border: 1px solid #2e333a; border-radius: 4px; color: #a0a6ae; background: #1c1f24; font: 9px "Cascadia Code", monospace; cursor: pointer; }.sequence-line-width button.is-active { color: #dce0e4; background: #2a2e34; border-color: #3d434b; }
+
+/* AB1 chromatogram viewer */
+.ab1-view { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; background: #0e1013; user-select: text; }
+.ab1-summary { display: flex; align-items: center; gap: 18px; padding: 9px 18px; border-bottom: 1px solid var(--border); color: #8b919a; font-size: 8px; background: #14181d; }.ab1-summary span { display: block; color: #5f666f; font: 700 7px "Cascadia Code", monospace; letter-spacing: .12em; }.ab1-summary strong { display: block; color: #d4d7dc; font-size: 11px; font-weight: 500; }.ab1-summary em { padding: 1px 6px; border-radius: 6px; color: #b5946b; background: rgba(181,148,107,.12); font-style: normal; font-size: 8px; }
+.ab1-summary > div { display: flex; flex-direction: column; gap: 2px; }
+.ab1-meta { flex-direction: row !important; flex-wrap: wrap; gap: 10px !important; color: #747b84; font-size: 9px; }.ab1-meta span { padding: 2px 6px; border: 1px solid #2a2e34; border-radius: 4px; color: #a0a6ae; background: #191c20; font: 9px "Cascadia Code", monospace; }
+.ab1-canvas-wrap { padding: 8px 12px; border-bottom: 1px solid var(--border); background: #0e1013; }
+.ab1-canvas { display: block; width: 100%; height: 240px; border-radius: 4px; background: #0e1013; }
+.ab1-bases { overflow: auto; padding: 8px 14px 14px; }
+.ab1-bases-body { margin: 0; padding: 10px 12px; border-radius: 4px; color: #d4d7dc; background: #15181c; font: 11px/1.55 "Cascadia Code", monospace; letter-spacing: .03em; word-break: break-all; white-space: pre-wrap; }
+.ab1-comment { padding: 10px 18px; border-top: 1px solid var(--border); color: #8b919a; font-size: 9px; background: #14181d; }.ab1-comment strong { display: block; margin-bottom: 4px; color: #aeb4bc; font-size: 8px; letter-spacing: .12em; }
+
+/* SnapGene DNA viewer — interactive plasmid map + linked sequence table. */
+.dna-view { position: absolute; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; color: #c4cad2; background: radial-gradient(circle at 25% 0%, #17202a 0, #0d1014 42%); user-select: text; }
+.dna-summary { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #29313a; color: #8b95a2; font-size: 8px; background: linear-gradient(180deg, rgba(25,31,38,.96), rgba(16,20,25,.96)); box-shadow: 0 10px 30px rgba(0,0,0,.22); }
+.dna-summary span, .dna-card-header span, .dna-panel-title span, .dna-feature-detail > span, .dna-search-panel label span, .dna-jump-panel label span { display: block; color: #687482; font: 700 7px "Cascadia Code", monospace; letter-spacing: .15em; text-transform: uppercase; }
+.dna-summary strong, .dna-card-header strong { display: block; color: #eef2f6; font-size: 12px; font-weight: 650; letter-spacing: .01em; }
+.dna-summary > div:not(.dna-summary-actions):not(.dna-strategy-pill) { display: flex; flex-direction: column; gap: 2px; }
+.dna-brand-card { min-width: 150px; padding: 7px 12px; border: 1px solid #33404c; border-radius: 12px; background: linear-gradient(135deg, rgba(95,211,198,.10), rgba(127,174,207,.04)); }
+.dna-strategy-pill { max-width: 260px; overflow: hidden; padding: 5px 9px; border: 1px solid #2f3944; border-radius: 999px; color: #96a2af; background: #131820; text-overflow: ellipsis; white-space: nowrap; font: 8px "Cascadia Code", monospace; }
+.dna-summary-actions { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; }
+.dna-summary-actions em { color: #7ed8a3; font-style: normal; font-size: 8px; }
+.dna-summary-actions button, .dna-map-controls button, .dna-line-width button, .dna-search-actions button, .dna-jump-panel button, .dna-feature-detail-actions button { height: 24px; padding: 0 9px; border: 1px solid #34404b; border-radius: 7px; color: #b8c1cb; background: linear-gradient(180deg, #1c242c, #151b22); font-size: 8px; cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .12s ease; }
+.dna-summary-actions button:hover, .dna-map-controls button:hover, .dna-line-width button:hover, .dna-search-actions button:hover, .dna-jump-panel button:hover, .dna-feature-detail-actions button:hover { border-color: #536272; background: #222b34; transform: translateY(-1px); }
+.dna-summary-actions button:disabled, .dna-search-actions button:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.dna-workbench { min-height: 0; display: grid; grid-template-columns: minmax(460px, 1.45fr) minmax(270px, .72fr); grid-template-rows: minmax(360px, .95fr) minmax(250px, 1fr); gap: 10px; padding: 10px; overflow: hidden; }
+.dna-map-card, .dna-sequence-card, .dna-inspector { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #26313b; border-radius: 16px; background: rgba(13,16,20,.82); box-shadow: 0 18px 44px rgba(0,0,0,.26); }
+.dna-map-card { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.dna-sequence-card { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.dna-inspector { grid-column: 2; grid-row: 1 / 3; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 9px; padding: 10px; overflow: auto; background: linear-gradient(180deg, rgba(18,23,29,.92), rgba(12,15,19,.92)); }
+.dna-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #26313b; background: rgba(20,26,32,.82); }
+.dna-map-controls, .dna-line-width { display: inline-flex; align-items: center; gap: 5px; color: #7c8793; font: 8px "Cascadia Code", monospace; }
+.dna-map-controls button, .dna-line-width button { min-width: 25px; height: 23px; padding: 0 7px; font-family: "Cascadia Code", monospace; }
+.dna-map-controls button.is-active, .dna-line-width button.is-active { color: #10151b; border-color: #7ed8c8; background: #7ed8c8; }
+.dna-map-mode { display: inline-flex; align-items: center; padding: 1px; border: 1px solid #2f3944; border-radius: 8px; background: #0f151b; gap: 0; }
+.dna-map-mode button { min-width: 36px; height: 19px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; color: #8b95a2; background: transparent; font: 8px "Cascadia Code", monospace; letter-spacing: .04em; transition: background .15s ease, color .15s ease, border-color .15s ease; }
+.dna-map-mode button:hover { color: #d7dee7; border-color: #34404b; background: #182029; }
+.dna-map-mode button.is-active { color: #0c1116; border-color: #7ed8c8; background: #7ed8c8; box-shadow: 0 0 0 1px rgba(126,216,200,.25); }
+.dna-map-mode button.is-active:hover { color: #0c1116; border-color: #7ed8c8; background: #7ed8c8; }
+.dna-map-divider { display: inline-block; width: 1px; height: 16px; margin: 0 3px; background: #2a3540; }
+.dna-plasmid { display: block; width: 100%; height: 100%; min-height: 0; }
+.dna-plasmid--circular { cursor: grab; touch-action: none; }
+.dna-plasmid--circular:active { cursor: grabbing; }
+.dna-map-feature, .dna-linear-feature rect, .dna-linear-overview rect { cursor: pointer; transition: opacity .12s ease, stroke-width .12s ease; }
+.dna-feature-label { cursor: pointer; }
+.dna-focus-ray { pointer-events: none; }
+.dna-linear-overview { width: calc(100% - 20px); height: 86px; margin: 0 10px 10px; border-radius: 14px; background: #0d1014; }
+.dna-plasmid--linear-detail { width: 100%; height: 100%; padding: 10px; box-sizing: border-box; }
+.dna-search-panel, .dna-jump-panel, .dna-feature-detail, .dna-feature-browser { border: 1px solid #28333d; border-radius: 12px; background: rgba(16,21,27,.78); }
+.dna-search-panel { display: grid; gap: 8px; padding: 10px; }
+.dna-search-panel label, .dna-jump-panel label { display: grid; gap: 5px; min-width: 0; }
+.dna-search-panel input, .dna-jump-panel input { width: 100%; height: 29px; box-sizing: border-box; border: 1px solid #33404b; border-radius: 8px; outline: 0; color: #dbe1e8; background: #0d1116; padding: 0 9px; font: 10px "Cascadia Code", monospace; }
+.dna-search-panel input:focus, .dna-jump-panel input:focus { border-color: #66d6c7; box-shadow: 0 0 0 2px rgba(102,214,199,.12); }
+.dna-search-actions { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }
+.dna-search-actions strong { color: #8f9aa7; font: 8px "Cascadia Code", monospace; white-space: nowrap; }
+.dna-current-hit { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px; align-items: center; width: 100%; padding: 6px 8px; border: 1px solid rgba(242,209,123,.35); border-radius: 9px; color: #e9d38d; background: rgba(242,209,123,.08); text-align: left; font-size: 8px; cursor: pointer; }
+.dna-current-hit span { padding: 2px 5px; border-radius: 5px; color: #10151b; background: #e9d38d; font: 700 7px "Cascadia Code", monospace; }
+.dna-jump-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; padding: 10px; }
+.dna-feature-detail { display: grid; gap: 9px; padding: 10px; }
+.dna-feature-detail--empty p { margin: 0; color: #778390; font-size: 9px; line-height: 1.5; }
+.dna-feature-detail-title { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.dna-feature-detail-title i { width: 12px; height: 12px; border-radius: 4px; box-shadow: 0 0 0 3px rgba(255,255,255,.04); }
+.dna-feature-detail-title strong { overflow: hidden; color: #eef2f6; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.dna-feature-detail dl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; }
+.dna-feature-detail dl div { padding: 6px 7px; border: 1px solid #252f39; border-radius: 8px; background: #0d1116; }
+.dna-feature-detail dt { color: #65707d; font-size: 7px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.dna-feature-detail dd { margin: 2px 0 0; color: #c6ced8; font: 9px "Cascadia Code", monospace; }
+.dna-feature-detail pre { max-height: 86px; overflow: auto; margin: 0; padding: 8px; border-radius: 8px; color: #aeb8c4; background: #0a0d11; font: 9px/1.6 "Cascadia Code", monospace; white-space: pre-wrap; word-break: break-all; }
+.dna-feature-detail-actions { display: flex; gap: 7px; }
+.dna-panel-title { display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; border-bottom: 1px solid #26313b; }
+.dna-panel-title strong { color: #aeb8c4; font: 10px "Cascadia Code", monospace; }
+.dna-feature-browser { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.dna-feature-list { min-height: 0; overflow: auto; padding: 6px; }
+.dna-feature-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 9px; color: #b8c1cb; background: transparent; text-align: left; cursor: pointer; }
+.dna-feature-item:hover, .dna-feature-item.is-hovered { background: rgba(255,255,255,.035); border-color: #2e3944; }
+.dna-feature-item.is-selected { background: rgba(126,216,200,.10); border-color: rgba(126,216,200,.45); }
+.dna-feature-item i { width: 10px; height: 22px; border-radius: 5px; }
+.dna-feature-item span { min-width: 0; }
+.dna-feature-item strong { display: block; overflow: hidden; color: #d7dee7; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.dna-feature-item em { display: block; overflow: hidden; margin-top: 2px; color: #73808e; font: 7px "Cascadia Code", monospace; text-overflow: ellipsis; white-space: nowrap; }
+.dna-sequence-toolbar { min-height: 43px; }
+.dna-sequence-pane { min-height: 0; overflow: auto; padding: 10px 13px 16px; background: #0a0d11; }
+.dna-sequence-labels { position: sticky; top: -10px; z-index: 5; display: grid; grid-template-columns: 82px 1fr; gap: 0 10px; padding: 8px 0 6px; color: #65707d; background: linear-gradient(180deg, #0a0d11 70%, rgba(10,13,17,0)); font: 700 7px "Cascadia Code", monospace; letter-spacing: .14em; text-transform: uppercase; }
+.dna-sequence-labels span:nth-child(3) { grid-column: 2; margin-top: 2px; color: #8f7855; }
+.dna-sequence-rows { display: grid; gap: 5px; }
+.dna-sequence-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 0 10px; padding: 7px 0 8px; border-top: 1px solid #161d24; }
+.dna-sequence-row:hover { background: linear-gradient(90deg, transparent, rgba(126,216,200,.025)); }
+.dna-sequence-position { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding-top: 22px; color: #687482; font: italic 9px "Cascadia Code", monospace; }
+.dna-sequence-position small { color: #3f4954; font-style: normal; font-size: 7px; }
+.dna-sequence-letters { min-width: 0; }
+.dna-feature-track { position: relative; height: 18px; margin-bottom: 3px; }
+.dna-feature-track-bar { position: absolute; height: 6px; min-width: 3px; border: 0; border-radius: 999px; opacity: .58; cursor: pointer; box-shadow: 0 0 0 1px rgba(0,0,0,.2) inset; }
+.dna-feature-track-bar:hover, .dna-feature-track-bar.is-hovered { opacity: .9; box-shadow: 0 0 0 1px #f4f7fb inset; }
+.dna-feature-track-bar.is-selected { height: 8px; opacity: 1; box-shadow: 0 0 0 1px #f4f7fb inset, 0 0 10px rgba(126,216,200,.32); }
+.dna-bases, .dna-protein { margin: 0; font-family: "Cascadia Code", monospace; word-break: break-all; white-space: pre-wrap; }
+.dna-bases { color: #d4d7dc; font-size: 11px; line-height: 1.72; letter-spacing: .045em; }
+.dna-protein { margin-top: 3px; color: #b5946b; font-size: 10px; line-height: 1.55; letter-spacing: .14em; opacity: .88; }
+.dna-base { border-radius: 3px; transition: background .12s ease, color .12s ease, box-shadow .12s ease; }
+.dna-base.is-search-hit { background: rgba(242,209,123,.22); box-shadow: 0 0 0 1px rgba(242,209,123,.12) inset; }
+.dna-base.is-active-range { color: #10151b !important; background: #f2d17b; box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset; }
+.dna-base.is-feature-selected { background: rgba(126,216,200,.17); }
+.dna-base.is-feature-hovered { background: rgba(255,255,255,.14); }
+@media (max-width: 980px) {
+  .dna-workbench { grid-template-columns: 1fr; grid-template-rows: minmax(340px, .8fr) minmax(260px, .8fr) minmax(260px, 1fr); overflow: auto; }
+  .dna-inspector { grid-column: 1; grid-row: 2; }
+  .dna-sequence-card { grid-row: 3; min-height: 320px; }
+}
+
 /* Tabular viewer (GFF / BED / VCF / SAM) */
 .tabular-view { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; background: #0e1013; }
 .tabular-summary { display: flex; align-items: center; gap: 16px; padding: 8px 14px; border-bottom: 1px solid var(--border); color: #8b919a; font-size: 8px; background: #14181d; }.tabular-summary span { display: block; color: #5f666f; font: 700 7px "Cascadia Code", monospace; letter-spacing: .12em; }.tabular-summary strong { color: #d4d7dc; font-size: 10px; font-weight: 500; }
@@ -340,10 +452,96 @@ kbd { padding: 2px 5px; border: 1px solid #363b43; border-radius: 4px; color: #7
 .tree-meta summary { padding: 6px 14px; cursor: pointer; }
 .tree-meta pre { max-height: 160px; overflow: auto; margin: 0; padding: 8px 18px; color: #747b84; background: #0d0f12; font: 8px/1.5 "Cascadia Code", monospace; }
 .spreadsheet-viewer { display: grid; grid-template-rows: minmax(0, 1fr) 31px; height: 100%; background: #121417; }.sheet-scroll { overflow: auto; }.spreadsheet-viewer table { min-width: 100%; border-collapse: collapse; font: 9px "Segoe UI", sans-serif; }.spreadsheet-viewer th { position: sticky; left: 0; z-index: 2; min-width: 38px; color: #727983; background: #1b1e22; }.spreadsheet-viewer th, .spreadsheet-viewer td { height: 24px; padding: 3px 7px; border-right: 1px solid #30343a; border-bottom: 1px solid #292d32; white-space: nowrap; }.spreadsheet-viewer td { min-width: 92px; color: #b7bcc4; }.sheet-tabs { display: flex; align-items: stretch; overflow-x: auto; border-top: 1px solid var(--border); background: #181b1f; }.sheet-tabs button { padding: 0 14px; border: 0; border-right: 1px solid var(--border); color: #727983; background: transparent; font-size: 8px; cursor: pointer; }.sheet-tabs button.is-active { color: #d8dce1; background: #24282d; }
-.pptx-scroll { height: 100%; overflow: auto; padding: 28px; background: #25282d; }.pptx-viewer { width: 960px; min-height: 540px; margin: 0 auto; }
+/* PowerPoint-style presentation workspace */
+.pptx-workbench { position: absolute; inset: 0; display: grid; grid-template-rows: 43px minmax(0, 1fr) 25px; min-width: 0; min-height: 0; color: #c8cdd4; background: #17191d; }
+.pptx-workbench.is-editing { grid-template-rows: 43px 48px minmax(0, 1fr) 25px; }
+.pptx-toolbar { z-index: 4; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 9px; border-bottom: 1px solid #30343a; background: #202328; box-shadow: 0 1px 4px rgba(0,0,0,.22); }
+.pptx-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 29px; height: 28px; padding: 0 7px; border: 1px solid transparent; border-radius: 5px; color: #adb3bc; background: transparent; font-size: 9px; cursor: pointer; }
+.pptx-toolbar button:hover:not(:disabled), .pptx-toolbar button.is-active { border-color: #3a4048; color: #f1f3f5; background: #2b2f35; }
+.pptx-toolbar button:disabled { opacity: .35; cursor: not-allowed; }
+.pptx-toolbar-document { display: grid; min-width: 120px; max-width: 220px; margin-right: 8px; line-height: 1.15; }
+.pptx-toolbar-document strong { overflow: hidden; color: #e2e5e9; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pptx-toolbar-document span { color: #737a84; font-size: 7px; }
+.pptx-search { display: flex; align-items: center; gap: 5px; width: min(220px, 24vw); height: 27px; padding: 0 7px; border: 1px solid #343940; border-radius: 5px; color: #737a84; background: #17191d; }
+.pptx-search:focus-within { border-color: #777f8a; }
+.pptx-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: #d2d6dc; background: transparent; font-size: 9px; }
+.pptx-search span { color: #777f88; font: 7px "Cascadia Code", monospace; white-space: nowrap; }
+.pptx-toolbar-spacer { flex: 1; }
+.pptx-toolbar-group { display: inline-flex; align-items: center; border: 1px solid #343940; border-radius: 5px; overflow: hidden; }
+.pptx-toolbar-group button { border: 0; border-radius: 0; }
+.pptx-toolbar-group button + button { border-left: 1px solid #343940; }
+.pptx-toolbar .pptx-present-button { border-color: #c55d3a; color: #fff; background: #c55d3a; }
+.pptx-toolbar .pptx-present-button:hover { border-color: #dc704b; background: #dc704b; }
+.pptx-editor-ribbon { z-index: 3; display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; overflow-y: hidden; padding: 0 8px; border-bottom: 1px solid #32373e; color: #8f969f; background: #1b1e22; scrollbar-width: thin; scrollbar-color: #464b53 transparent; }
+.pptx-editor-ribbon button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 7px; border: 1px solid transparent; border-radius: 4px; color: #aeb4bc; background: transparent; font-size: 8px; cursor: pointer; }
+.pptx-editor-ribbon button:hover:not(:disabled), .pptx-editor-ribbon button.is-active { border-color: #424850; color: #f0f2f4; background: #2a2e34; }
+.pptx-editor-ribbon button:disabled, .pptx-editor-ribbon select:disabled, .pptx-editor-ribbon input:disabled { opacity: .38; cursor: not-allowed; }
+.pptx-ribbon-group { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; height: 32px; padding: 0 4px; border-right: 1px solid #33383f; }
+.pptx-ribbon-group select, .pptx-editor-ribbon > select { height: 27px; max-width: 112px; padding: 0 20px 0 6px; border: 1px solid #393f47; border-radius: 4px; outline: 0; color: #c6cbd2; background: #24282d; font-size: 8px; }
+.pptx-format-group select { width: 92px; }
+.pptx-font-size { flex: 0 0 42px; width: 42px; height: 25px; padding: 0 4px; border: 1px solid #393f47; border-radius: 4px; outline: 0; color: #d7dbe0; background: #24282d; font-size: 8px; }
+.pptx-color-control { position: relative; display: grid; flex: 0 0 28px; width: 28px; height: 27px; place-items: center; border-radius: 4px; color: #d9dde2; font: 700 10px serif; cursor: pointer; }
+.pptx-color-control:hover { background: #2a2e34; }
+.pptx-color-control input { position: absolute; right: 4px; bottom: 2px; width: 20px; height: 4px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.pptx-text-input { flex: 0 0 170px; width: 170px; height: 27px; padding: 0 7px; border: 1px solid #393f47; border-radius: 4px; outline: 0; color: #d5d9de; background: #24282d; font-size: 8px; }
+.pptx-text-input:focus { border-color: #68717c; }
+.pptx-editor-ribbon .pptx-editor-save { border-color: #397d74; color: #e9fffb; background: #27665e; }
+.pptx-editor-ribbon .pptx-editor-save:hover:not(:disabled) { border-color: #50a397; background: #347e74; }
+.pptx-editor-notice { flex: 0 0 auto; max-width: 210px; overflow: hidden; color: #707780; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.pptx-editor-notice.is-error { color: #d79191; }
+.pptx-workspace { display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+.pptx-thumbnails { flex: 0 0 190px; min-height: 0; overflow: auto; padding: 10px 7px 18px; border-right: 1px solid #30343a; background: #1c1f23; scrollbar-color: #3a3f46 transparent; }
+.pptx-thumbnails > button { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; width: 100%; margin: 0 0 7px; padding: 4px 6px 5px 0; border: 1px solid transparent; border-radius: 5px; color: #737a84; background: transparent; cursor: pointer; }
+.pptx-thumbnails > button:hover { background: #25292e; }
+.pptx-thumbnails > button.is-active { border-color: #d66a43; color: #e4e7eb; background: #292d32; box-shadow: inset 3px 0 #d66a43; }
+.pptx-thumbnails > button.is-search-match:not(.is-active)::after { position: absolute; top: 5px; right: 7px; width: 5px; height: 5px; border-radius: 50%; background: #e0a45c; content: ""; }
+.pptx-thumbnail-number { padding-top: 3px; font: 8px "Cascadia Code", monospace; text-align: center; }
+.pptx-thumbnail-viewport { position: relative; overflow: hidden; border: 1px solid #4a4e54; background: #fff; box-shadow: 0 2px 7px rgba(0,0,0,.35); pointer-events: none; }
+.pptx-thumbnail-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.pptx-thumbnail-content .pptx-preview-slide-wrapper { margin: 0 !important; }
+.pptx-stage { position: relative; display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; padding: 24px; box-sizing: border-box; background: #292c31; scrollbar-color: #464b53 transparent; }
+.pptx-canvas-viewport { position: relative; flex: 0 0 auto; margin: auto; background: #fff; box-shadow: 0 18px 48px rgba(0,0,0,.48); }
+.pptx-canvas-host { position: absolute; z-index: 1; top: 0; left: 0; overflow: hidden; background: #fff; transform-origin: 0 0; user-select: text; }
+.pptx-canvas-host > .pptx-preview-wrapper { width: 960px !important; height: 100% !important; overflow: hidden !important; background: transparent !important; }
+.pptx-canvas-host .pptx-preview-slide-wrapper { margin: 0 !important; }
+.pptx-editor-layer { position: absolute; z-index: 5; top: 0; left: 0; overflow: hidden; transform-origin: 0 0; pointer-events: none; }
+.pptx-editor-shape { position: absolute; box-sizing: border-box; outline: 1px solid transparent; outline-offset: 1px; pointer-events: auto; transform-origin: center; }
+.pptx-editor-shape.is-text { cursor: default; }
+.pptx-editor-shape.is-image { cursor: pointer; }
+.pptx-editor-shape:hover { outline-color: rgba(65, 153, 216, .7); background: rgba(65, 153, 216, .04); }
+.pptx-editor-shape.is-selected { outline: 2px solid #4199d8; background: rgba(65, 153, 216, .08); box-shadow: 0 0 0 2px rgba(255,255,255,.75); }
+.pptx-editor-shape.is-selected::after { position: absolute; right: -5px; bottom: -5px; width: 7px; height: 7px; border: 1px solid #fff; background: #4199d8; content: ""; }
+.pptx-editor-shape-text { width: 100%; height: 100%; box-sizing: border-box; overflow: hidden; color: transparent; -webkit-text-fill-color: transparent; line-height: 1.12; white-space: pre-wrap; word-break: break-word; user-select: none; }
+.pptx-editor-shape.is-selected .pptx-editor-shape-text { color: inherit; -webkit-text-fill-color: currentColor; background: rgba(255,255,255,.9); user-select: text; }
+.pptx-editor-shape img { display: block; width: 100%; height: 100%; object-fit: fill; user-select: none; }
+.pptx-editor-layer.is-annotating .pptx-editor-shape { outline-color: transparent; background: transparent; cursor: text; }
+.pptx-editor-layer.is-annotating .pptx-editor-shape-text { color: transparent; -webkit-text-fill-color: transparent; user-select: text; cursor: text; }
+.pptx-editor-layer.is-annotating .pptx-editor-shape-text::selection { color: transparent; -webkit-text-fill-color: transparent; background: rgba(66, 196, 181, .62); }
+.pptx-stage-nav { position: absolute; z-index: 8; top: 50%; display: grid; place-items: center; width: 34px; height: 52px; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; color: rgba(255,255,255,.72); background: rgba(10,12,15,.58); box-shadow: 0 5px 18px rgba(0,0,0,.25); opacity: 0; cursor: pointer; transform: translateY(-50%); transition: opacity .15s, background .15s; }
+.pptx-stage:hover .pptx-stage-nav, .pptx-stage:fullscreen .pptx-stage-nav { opacity: 1; }
+.pptx-stage-nav:hover:not(:disabled) { color: #fff; background: rgba(10,12,15,.86); }
+.pptx-stage-nav:disabled { opacity: 0 !important; pointer-events: none; }
+.pptx-stage-nav.is-previous { left: 14px; }
+.pptx-stage-nav.is-next { right: 14px; }
+.pptx-stage-counter { position: absolute; z-index: 8; right: 14px; bottom: 12px; height: 22px; padding: 0 8px; border-radius: 12px; color: #d9dde2; background: rgba(10,12,15,.68); font: 8px/22px "Cascadia Code", monospace; pointer-events: none; }
+.pptx-stage-fullscreen-hint { position: absolute; z-index: 7; bottom: 12px; left: 50%; display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 5px; color: #b7bdc5; background: rgba(10,12,15,.62); font-size: 8px; opacity: 0; pointer-events: none; transform: translateX(-50%); transition: opacity .15s; }
+.pptx-stage:hover .pptx-stage-fullscreen-hint { opacity: 1; }
+.pptx-stage-message, .pptx-stage-error { position: absolute; z-index: 10; inset: 0; display: flex; align-items: center; justify-content: center; gap: 9px; color: #a9afb7; background: #292c31; font-size: 10px; }
+.pptx-stage-error .viewer-state { position: absolute; inset: 0; }
+.pptx-loading-ring { width: 17px; height: 17px; border: 2px solid #4b5159; border-top-color: #d66a43; border-radius: 50%; }
+.pptx-statusbar { display: flex; align-items: center; gap: 16px; padding: 0 11px; border-top: 1px solid #30343a; color: #737a84; background: #1c1f23; font: 7px "Cascadia Code", monospace; }
+.pptx-statusbar span:last-child { margin-left: auto; }
+.pptx-stage:fullscreen { width: 100vw; height: 100vh; padding: 14px; background: #000; }
+.pptx-stage:fullscreen .pptx-canvas-viewport { box-shadow: none; }
+.pptx-stage:fullscreen .pptx-stage-fullscreen-hint { display: none; }
+.pptx-stage:fullscreen .pptx-stage-counter { position: fixed; right: 18px; bottom: 15px; }
+.pptx-jump-flash { animation: pptx-jump-pulse 1.8s ease-out; }
+@keyframes pptx-jump-pulse { 0%, 32% { box-shadow: inset 0 0 0 6px rgba(224,164,92,.95); } 100% { box-shadow: inset 0 0 0 1px rgba(224,164,92,0); } }
+@media (max-width: 880px) { .pptx-thumbnails { flex-basis: 174px; }.pptx-toolbar-document { display: none; }.pptx-search { width: 120px; }.pptx-toolbar button span, .pptx-editor-ribbon button span { display: none; }.pptx-editor-notice { display: none; } }
 
 /* Terminal */
 .agent-terminal { position: absolute; inset: 0; visibility: hidden; padding: 7px 3px 4px 8px; background: #0b0d10; }.agent-terminal.is-active { visibility: visible; }.agent-terminal .xterm { height: 100%; }.agent-terminal .xterm-viewport { scrollbar-color: #343940 transparent; }
+.agent-terminal-loading { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; color: #737a84; background: #0b0d10; font-size: 9px; }
 
 /* Annotations */
 .annotation-panel { padding-bottom: 20px; }
@@ -671,26 +869,55 @@ kbd { padding: 2px 5px; border: 1px solid #363b43; border-radius: 4px; color: #7
   .annotation-footer button { width: 20px; height: 20px; }
 }
 
-/* Folder picker (web) */
-.folder-picker-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(6, 8, 11, 0.62); backdrop-filter: blur(2px); }
-.folder-picker { width: min(560px, 92vw); max-height: 78vh; display: flex; flex-direction: column; background: #131922; border: 1px solid #232b36; border-radius: 14px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.5); }
-.folder-picker-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #232b36; }
-.folder-picker-head strong { color: #e9eef5; font-size: 14px; }
-.folder-picker-head button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: #8f9baa; background: transparent; border: none; cursor: pointer; }
-.folder-picker-head button:hover { background: #1d2530; color: #e9eef5; }
-.folder-picker-crumbs { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #1a212b; background: #0f141b; }
-.folder-picker-crumbs .fp-up { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 7px; color: #b4bac2; background: #1d2530; border: none; cursor: pointer; font-size: 12px; }
-.folder-picker-crumbs .fp-up:disabled { opacity: .4; cursor: default; }
-.folder-picker-path { color: #8f9baa; font: 12px "Cascadia Code", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-picker-list { flex: 1; overflow-y: auto; padding: 6px; }
-.folder-picker-empty { padding: 24px; text-align: center; color: #616872; font-size: 13px; }
-.folder-picker-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 11px; border-radius: 8px; color: #c7cdd6; background: transparent; border: none; cursor: pointer; font-size: 13px; text-align: left; }
-.folder-picker-item:hover { background: #1b232e; color: #e9eef5; }
-.folder-picker-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-picker-item svg:last-child { color: #4a525d; }
-.folder-picker-foot { padding: 12px 16px; border-top: 1px solid #232b36; display: flex; justify-content: flex-end; }
-.folder-picker-foot .is-primary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; color: #06121f; background: #5fd3c6; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
-.folder-picker-foot .is-primary:disabled { opacity: .4; cursor: default; }
+/* Folder picker (web) — file-explorer style */
+.folder-picker-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(6, 8, 11, 0.62); backdrop-filter: blur(3px); animation: fp-fade .14s ease; }
+@keyframes fp-fade { from { opacity: 0; } to { opacity: 1; } }
+.folder-picker { width: min(680px, 94vw); height: min(560px, 86vh); display: flex; flex-direction: column; background: #131922; border: 1px solid #2a323e; border-radius: 12px; overflow: hidden; box-shadow: 0 28px 80px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.02); animation: fp-pop .16s cubic-bezier(.2,.8,.2,1); }
+@keyframes fp-pop { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+
+.folder-picker-head { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid #222932; }
+.folder-picker-head strong { color: #e9eef5; font-size: 13px; font-weight: 650; }
+.fp-close { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: #8f9baa; background: transparent; border: none; cursor: pointer; }
+.fp-close:hover { background: #1d2530; color: #e9eef5; }
+
+/* toolbar: up button · breadcrumb address bar · refresh */
+.fp-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #1a212b; background: linear-gradient(#10151c, #0d1218); }
+.fp-icon-btn { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 6px; color: #aab2bd; background: transparent; border: 1px solid transparent; cursor: pointer; }
+.fp-icon-btn:hover:not(:disabled) { background: #1b232e; color: #e9eef5; border-color: #2a333f; }
+.fp-icon-btn:disabled { opacity: .35; cursor: default; }
+
+.fp-address { flex: 1; display: flex; align-items: center; min-width: 0; height: 30px; padding: 0 6px; background: #0a0e13; border: 1px solid #222932; border-radius: 6px; overflow: hidden; }
+.fp-crumb-wrap { display: inline-flex; align-items: center; min-width: 0; }
+.fp-crumb-sep { color: #4a525d; flex: none; }
+.fp-crumb { display: inline-flex; align-items: center; max-width: 220px; padding: 3px 6px; border-radius: 4px; color: #b9c0c9; background: transparent; border: none; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-crumb:hover { background: #1b232e; color: #e9eef5; }
+.fp-crumb.is-current { color: #e9eef5; font-weight: 600; cursor: default; }
+
+/* list */
+.fp-list { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.fp-list-head { display: flex; align-items: center; height: 26px; padding: 0 14px; border-bottom: 1px solid #1a212b; background: #0f141b; color: #6c7480; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+.fp-list-body { flex: 1; overflow-y: auto; padding: 4px; }
+.fp-list-body::-webkit-scrollbar { width: 10px; }
+.fp-list-body::-webkit-scrollbar-thumb { background: #2a323e; border-radius: 6px; border: 2px solid #131922; }
+.fp-list-body::-webkit-scrollbar-thumb:hover { background: #35404e; }
+.fp-empty { padding: 44px 16px; text-align: center; color: #616872; font-size: 13px; }
+
+.fp-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 10px; border-radius: 6px; color: #c7cdd6; background: transparent; border: 1px solid transparent; cursor: pointer; font-size: 13px; text-align: left; }
+.fp-row:hover { background: #1a212b; color: #e9eef5; }
+.fp-row:focus-visible { outline: none; background: #1e3142; border-color: #3a6080; color: #e9eef5; }
+.fp-row-icon { display: grid; place-items: center; flex: none; width: 18px; height: 18px; color: #8f9baa; }
+.fp-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-row-arrow { color: #3d4651; flex: none; opacity: 0; transition: opacity .1s; }
+.fp-row:hover .fp-row-arrow { opacity: 1; color: #6b7480; }
+
+/* footer */
+.fp-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #222932; background: #0f141b; }
+.fp-foot-path { flex: 1; min-width: 0; color: #6c7480; font: 11px "Cascadia Code", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-secondary { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 6px; color: #b9c0c9; background: #1a212b; border: 1px solid #2a333f; cursor: pointer; font-size: 12px; }
+.fp-secondary:hover { background: #222b36; color: #e9eef5; }
+.fp-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 16px; border-radius: 6px; color: #06121f; background: #5fd3c6; border: none; cursor: pointer; font-size: 12px; font-weight: 650; }
+.fp-primary:hover:not(:disabled) { background: #6ee0d3; }
+.fp-primary:disabled { opacity: .4; cursor: default; }
 
 
 

@@ -14,14 +14,18 @@ const SpreadsheetView = lazy(() => import("./viewers/SpreadsheetView"));
 const PptxView = lazy(() => import("./viewers/PptxView"));
 const PdfView = lazy(() => import("./viewers/PdfView"));
 const SequenceView = lazy(() => import("./viewers/SequenceView"));
+const Ab1View = lazy(() => import("./viewers/Ab1View"));
+const DnaView = lazy(() => import("./viewers/DnaView"));
 const TabularView = lazy(() => import("./viewers/TabularView"));
 const TreeView = lazy(() => import("./viewers/TreeView"));
+const TiffView = lazy(() => import("./viewers/TiffView"));
 
 function ViewerFallback() {
   return <div className="viewer-state"><LoaderCircle className="spin" size={24} /><span>正在加载查看器…</span></div>;
 }
 
 interface FileViewerProps {
+  rootPath: string;
   payload: FilePayload;
   content: string;
   onContentChange: (content: string) => void;
@@ -89,6 +93,13 @@ const TREE_EXTENSIONS = new Set([
 const SPREADSHEET_EXTRA = new Set(["tab"]);
 // Image formats that the browser can decode directly from the data URI.
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "avif", "heic", "tif", "tiff"]);
+// Sanger sequencing traces (ABIF / Applied Biosystems) — binary, parsed by
+// Ab1View. We add it to BINARY_OPENABLE so the generic "binary not
+// supported" fallback is bypassed and the dedicated viewer can take over.
+const AB1_EXTENSIONS = new Set(["ab1"]);
+// SnapGene plasmid files (.dna) — proprietary binary container, parsed by
+// DnaView. Same gating as AB1.
+const DNA_EXTENSIONS = new Set(["dna"]);
 // Binary formats the user can still open via the OS shell handler.
 const BINARY_OPENABLE = new Set([
   ...IMAGE_EXTENSIONS,
@@ -112,19 +123,22 @@ const BINARY_OPENABLE = new Set([
   "parquet", "arrow", "feather", "h5", "hdf5", "npy", "npz", "mat",
 ]);
 
-export function FileViewer({ payload, content, onContentChange, onSelection, onOpenExternal, onBinarySave, onDocxSave, annotations, onCreatePdfAnnotation, pdfAgents, onCreateAnnotation, pendingJump, onJumpMissed, onDocxReviewChange, pendingDocxReviewJump, onRefreshFile, onOpenReview }: FileViewerProps) {
+export function FileViewer({ rootPath, payload, content, onContentChange, onSelection, onOpenExternal, onBinarySave, onDocxSave, annotations, onCreatePdfAnnotation, pdfAgents, onCreateAnnotation, pendingJump, onJumpMissed, onDocxReviewChange, pendingDocxReviewJump, onRefreshFile, onOpenReview }: FileViewerProps) {
   const [markdownMode, setMarkdownMode] = useState<"preview" | "source">("preview");
   const isMarkdown = payload.extension === "md" || payload.extension === "markdown" || payload.extension === "mdx";
   const isRst = payload.extension === "rst";
+  // Keep FASTA-family files in the default text editor so their original
+  // headers, wrapping and sequence lines remain untouched. The richer record
+  // viewer is reserved for FASTQ and freeform `.seq` inputs.
+  const isSequence = payload.extension === "fq" || payload.extension === "fastq"
+    || (payload.extension === "seq" && payload.encoding === "utf8");
   const isText = payload.encoding === "utf8" && !["csv", "tsv"].includes(payload.extension);
   const isPdf = payload.extension === "pdf";
-  const isSequence = payload.extension === "fasta" || payload.extension === "fa" || payload.extension === "fna"
-    || payload.extension === "faa" || payload.extension === "ffn" || payload.extension === "frn" || payload.extension === "mpfa"
-    || payload.extension === "fq" || payload.extension === "fastq";
   const isTabular = TABULAR_EXTENSIONS.has(payload.extension);
   const isTree = TREE_EXTENSIONS.has(payload.extension);
   const isSpreadsheetExtra = SPREADSHEET_EXTRA.has(payload.extension);
   const isImage = IMAGE_EXTENSIONS.has(payload.extension);
+  const isTiff = payload.extension === "tif" || payload.extension === "tiff";
   // Office family files that don't have a dedicated built-in viewer yet —
   // they go through the OS shell handler (Word / Excel / PowerPoint) instead
   // of the generic "binary not supported" fallback.
@@ -143,7 +157,12 @@ export function FileViewer({ payload, content, onContentChange, onSelection, onO
       default: return "Office 文档";
     }
   }, [officeFamily]);
-  const isBinary = payload.encoding === "base64" && !BINARY_OPENABLE.has(payload.extension);
+  const isAb1Binary = AB1_EXTENSIONS.has(payload.extension) && payload.encoding === "base64";
+  const isDnaBinary = DNA_EXTENSIONS.has(payload.extension) && payload.encoding === "base64";
+  const isBinary = payload.encoding === "base64"
+    && !BINARY_OPENABLE.has(payload.extension)
+    && !isAb1Binary
+    && !isDnaBinary;
 
   const imageMime = useMemo(() => {
     const aliases: Record<string, string> = {
@@ -179,13 +198,22 @@ export function FileViewer({ payload, content, onContentChange, onSelection, onO
             onJumpMissed={onJumpMissed}
           />
         )}
-        {payload.encoding === "base64" && isImage && (
+        {payload.encoding === "base64" && isImage && !isTiff && (
           <div className="image-viewer">
             <img src={`data:${imageMime};base64,${payload.content}`} alt={payload.name} />
           </div>
         )}
+        {payload.encoding === "base64" && isTiff && (
+          <TiffView payload={payload} onOpenExternal={onOpenExternal} />
+        )}
         {isSequence && payload.encoding === "utf8" && (
           <SequenceView payload={payload} onSelection={onSelection} pendingJump={pendingJump ?? null} onJumpMissed={onJumpMissed} />
+        )}
+        {isAb1Binary && (
+          <Ab1View payload={payload} onSelection={onSelection} pendingJump={pendingJump ?? null} onJumpMissed={onJumpMissed} />
+        )}
+        {isDnaBinary && (
+          <DnaView payload={payload} onSelection={onSelection} pendingJump={pendingJump ?? null} onJumpMissed={onJumpMissed} onOpenExternal={onOpenExternal} />
         )}
         {isTabular && payload.encoding === "utf8" && (
           <TabularView payload={payload} pendingJump={pendingJump ?? null} onJumpMissed={onJumpMissed} />
@@ -212,7 +240,15 @@ export function FileViewer({ payload, content, onContentChange, onSelection, onO
           <SpreadsheetView payload={payload} pendingJump={pendingJump ?? null} onJumpMissed={onJumpMissed} />
         )}
         {(payload.extension === "pptx" || payload.extension === "pptm") && (
-          <PptxView payload={payload} />
+          <PptxView
+            payload={payload}
+            rootPath={rootPath}
+            onOpenExternal={onOpenExternal}
+            onRefresh={onRefreshFile}
+            onSelection={onSelection}
+            pendingJump={pendingJump ?? null}
+            onJumpMissed={onJumpMissed}
+          />
         )}
         {isMarkdown && markdownMode === "preview" && (
           <MarkdownView payload={payload} content={content} onSelection={onSelection} pendingJump={pendingJump ?? null} onJumpMissed={onJumpMissed} />

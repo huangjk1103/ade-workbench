@@ -1,14 +1,14 @@
-// Convert between legacy .doc and modern .docx using Microsoft Word COM
-// automation. The server hands us base64-encoded input via stdin and we
+// Convert legacy Word/PowerPoint files to modern OOXML using Microsoft
+// Office COM automation. The server hands us base64-encoded input via stdin and we
 // return base64-encoded output via stdout. We stage files in os.tmpdir()
 // because Word COM opens files by absolute path.
 //
-//   stdin  : { "mode": "doc-to-docx" | "docx-to-doc",
+//   stdin  : { "mode": "doc-to-docx" | "docx-to-doc" | "ppt-to-pptx",
 //              "inputBase64": "<base64>" }
 //   stdout : { "outputBase64": "<base64>" }
 //   exit 0 : success
 //   exit 1 : usage / IO error
-//   exit 2 : Word automation error
+//   exit 2 : Office automation error
 //   exit 3 : timeout
 
 const { execFileSync } = require("node:child_process");
@@ -17,8 +17,9 @@ const os = require("node:os");
 const path = require("node:path");
 
 const FORMATS = {
-  "doc-to-docx": { inputExt: ".doc", outputExt: ".docx", formatCode: 16 },
-  "docx-to-doc": { inputExt: ".docx", outputExt: ".doc", formatCode: 0 },
+  "doc-to-docx": { inputExt: ".doc", outputExt: ".docx", formatCode: 16, script: "word-format-convert.vbs", app: "Word" },
+  "docx-to-doc": { inputExt: ".docx", outputExt: ".doc", formatCode: 0, script: "word-format-convert.vbs", app: "Word" },
+  "ppt-to-pptx": { inputExt: ".ppt", outputExt: ".pptx", formatCode: 24, script: "powerpoint-format-convert.vbs", app: "PowerPoint" },
 };
 
 async function readStdin() {
@@ -49,13 +50,13 @@ async function main() {
   }
 
   const inputBytes = Buffer.from(payload.inputBase64, "base64");
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ade-word-"));
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ade-office-"));
   const inputPath = path.join(tmpRoot, "input" + fmt.inputExt);
   const outputPath = path.join(tmpRoot, "output" + fmt.outputExt);
   fs.writeFileSync(inputPath, inputBytes);
 
   const scriptDir = path.resolve(__dirname);
-  const vbsPath = path.join(scriptDir, "word-format-convert.vbs");
+  const vbsPath = path.join(scriptDir, fmt.script);
 
   try {
     execFileSync("cscript.exe", [
@@ -69,7 +70,7 @@ async function main() {
   } catch (err) {
     const stdout = err.stdout?.toString() ?? "";
     const stderr = err.stderr?.toString() ?? "";
-    process.stderr.write(`conversion failed (exit=${err.status})\n${stdout}${stderr}\n`);
+    process.stderr.write(`${fmt.app} conversion failed (exit=${err.status})\n${stdout}${stderr}\n`);
     try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
     if (err.signal === "SIGTERM" || err.code === "ETIMEDOUT") process.exit(3);
     process.exit(2);
